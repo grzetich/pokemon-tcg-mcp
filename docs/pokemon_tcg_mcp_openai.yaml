@@ -1,0 +1,736 @@
+openapi: 3.0.0
+info:
+  title: Pokémon TCG MCP Server API
+  description: A Model Context Protocol (MCP) server that exposes comprehensive Pokémon TCG data and pricing information, ideal for LLM integration and other applications. This server wraps the `pokemontcg.io` API via the `pokemon-tcgsdk-python` library.
+  version: 1.0.0
+servers:
+  - url: https://your-pokemon-mcp-app-name.herokuapp.com # Replace with your actual Heroku app URL
+    description: Production Heroku deployment
+  - url: http://127.0.0.1:5000
+    description: Local Development Server
+
+paths:
+  /:
+    get:
+      summary: Server Home
+      description: Returns a welcome message to confirm the server is running.
+      responses:
+        '200':
+          description: Server status message.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Pokémon TCG MCP Server is running! Available endpoints: /cards, /cards/<id>, /card_price, /sets, /sets/<id>, /types, /supertypes, /subtypes, /rarities."
+
+  /cards:
+    get:
+      summary: Search for Pokémon TCG Cards
+      description: Searches for Pokémon TCG cards based on various criteria such as name, set, type, and rarity. Supports pagination.
+      parameters:
+        - in: query
+          name: name
+          schema:
+            type: string
+          description: The full or partial name of the Pokémon card.
+          example: Pikachu
+        - in: query
+          name: set
+          schema:
+            type: string
+          description: The name of the set the card belongs to.
+          example: Base
+        - in: query
+          name: type
+          schema:
+            type: string
+          description: The card's type (e.g., 'Grass', 'Fire', 'Water').
+          example: Grass
+        - in: query
+          name: rarity
+          schema:
+            type: string
+          description: The card's rarity (e.g., 'Common', 'Rare Holo', 'Ultra Rare').
+          example: Rare Holo
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: The page number for results (for pagination).
+          example: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+          description: The number of results per page (for pagination).
+          example: 10
+      responses:
+        '200':
+          description: A list of matching Pokémon TCG cards and pagination information.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Card'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '400':
+          description: Invalid page or limit parameter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No cards found matching the criteria.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: not_found
+                  query:
+                    type: object
+                    example: {"name": "NonExistent"}
+                  message:
+                    type: string
+                    example: "No Pokémon cards found matching your criteria."
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /cards/{card_id}:
+    get:
+      summary: Get Card by ID
+      description: Retrieves a specific Pokémon TCG card by its unique ID.
+      parameters:
+        - in: path
+          name: card_id
+          schema:
+            type: string
+          required: true
+          description: The unique ID of the Pokémon card (e.g., 'base1-4').
+          example: base1-4
+      responses:
+        '200':
+          description: The requested Pokémon TCG card details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  card:
+                    $ref: '#/components/schemas/Card'
+        '404':
+          description: Card not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: not_found
+                  card_id:
+                    type: string
+                    example: "nonexistent-id"
+                  message:
+                    type: string
+                    example: "No Pokémon card found with ID 'nonexistent-id'."
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /card_price:
+    get:
+      summary: Get Card Price by Name
+      description: Fetches the current TCGPlayer market price and details for a specific Pokémon TCG card by its name. Prioritizes market price if available.
+      parameters:
+        - in: query
+          name: card_name
+          schema:
+            type: string
+          required: true
+          description: The full name of the Pokémon card.
+          example: Charizard
+      responses:
+        '200':
+          description: The price data and details for the requested card.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  card_name:
+                    type: string
+                    example: Charizard
+                  card_id:
+                    type: string
+                    example: xy7-4
+                  set_name:
+                    type: string
+                    example: Ancient Origins
+                  rarity:
+                    type: string
+                    example: Rare Holo
+                  card_image:
+                    type: string
+                    format: url
+                    example: "https://images.pokemontcg.io/xy7/4.png"
+                  prices:
+                    type: object
+                    additionalProperties:
+                      type: number
+                      format: float
+                    example:
+                      holofoil: 120.50
+                      normal: 90.00
+                      reverseHolofoil: 150.75
+                  message:
+                    type: string
+                    example: "Price data retrieved for 'Charizard'."
+        '400':
+          description: Missing 'card_name' parameter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Card not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: not_found
+                  card_name:
+                    type: string
+                    example: "NonExistentCardXYZ"
+                  message:
+                    type: string
+                    example: "No Pokémon card found with the name 'NonExistentCardXYZ'."
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '200_no_price': # Custom response for 'no_price_data' status
+          description: Card found, but no price data available from TCGPlayer.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: no_price_data
+                  card_name:
+                    type: string
+                    example: "Ancient Mew"
+                  card_id:
+                    type: string
+                    example: "promo-40"
+                  card_image:
+                    type: string
+                    format: url
+                    example: "https://images.pokemontcg.io/promo/40.png"
+                  message:
+                    type: string
+                    example: "No TCGPlayer price data available for 'Ancient Mew'."
+
+
+  /sets:
+    get:
+      summary: Get Pokémon TCG Sets
+      description: Retrieves a list of all Pokémon TCG sets, with optional filtering by name and pagination.
+      parameters:
+        - in: query
+          name: name
+          schema:
+            type: string
+          description: The name of the set to search for (e.g., 'Base Set').
+          example: Base
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: The page number for results.
+        - in: query
+          name: limit
+            type: integer
+            minimum: 1
+            default: 20
+          description: The number of results per page.
+      responses:
+        '200':
+          description: A list of Pokémon TCG sets and pagination information.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Set'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '400':
+          description: Invalid page or limit parameter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No sets found matching the criteria.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: not_found
+                  query:
+                    type: object
+                    example: {"name": "NonExistentSet"}
+                  message:
+                    type: string
+                    example: "No Pokémon sets found matching your criteria."
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /sets/{set_id}:
+    get:
+      summary: Get Set by ID
+      description: Retrieves a specific Pokémon TCG set by its unique ID.
+      parameters:
+        - in: path
+          name: set_id
+          schema:
+            type: string
+          required: true
+          description: The unique ID of the Pokémon set (e.g., 'base1').
+          example: swsh1
+      responses:
+        '200':
+          description: The requested Pokémon TCG set details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  set:
+                    $ref: '#/components/schemas/Set'
+        '404':
+          description: Set not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: not_found
+                  set_id:
+                    type: string
+                    example: "nonexistent-set"
+                  message:
+                    type: string
+                    example: "No Pokémon set found with ID 'nonexistent-set'."
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /types:
+    get:
+      summary: Get All Card Types
+      description: Retrieves a list of all available Pokémon TCG card types (e.g., 'Grass', 'Fire').
+      responses:
+        '200':
+          description: A list of all card types.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  types:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Colorless", "Darkness", "Dragon", "Fairy", "Fighting", "Fire", "Grass", "Lightning", "Metal", "Psychic", "Water"]
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /supertypes:
+    get:
+      summary: Get All Card Supertypes
+      description: Retrieves a list of all available Pokémon TCG card supertypes (e.g., 'Pokémon', 'Trainer').
+      responses:
+        '200':
+          description: A list of all card supertypes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  supertypes:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Energy", "Pokémon", "Trainer"]
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /subtypes:
+    get:
+      summary: Get All Card Subtypes
+      description: Retrieves a list of all available Pokémon TCG card subtypes (e.g., 'Basic', 'V', 'EX').
+      responses:
+        '200':
+          description: A list of all card subtypes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  subtypes:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Basic", "BREAK", "EX", "GX", "LEGEND", "Level-Up", "Mega", "RESTORE", "SP", "Stage 1", "Stage 2", "TAG TEAM", "V", "VMAX", "VSTAR", "Radiant"]
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /rarities:
+    get:
+      summary: Get All Card Rarities
+      description: Retrieves a list of all available Pokémon TCG card rarities (e.g., 'Common', 'Rare Holo').
+      responses:
+        '200':
+          description: A list of all card rarities.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  rarities:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Common", "Uncommon", "Rare", "Rare Holo", "Rare Holo EX", "Rare Holo GX", "Rare Holo LV.X", "Rare Holo Star", "Rare Holo V", "Rare Holo VMAX", "Rare Holo VSTAR", "Rare Prime", "Rare Rainbow", "Rare Secret", "Rare Shiny", "Rare Shiny GX", "Rare Ultra", "Amazing Rare", "LEGEND", "Promo", "Radiant Rare", "Trainer Gallery Rare Holo"]
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: "Missing 'card_name' query parameter."
+    
+    Pagination:
+      type: object
+      properties:
+        total_items:
+          type: integer
+          description: Total number of items available.
+          example: 123
+        total_pages:
+          type: integer
+          description: Total number of pages.
+          example: 7
+        current_page:
+          type: integer
+          description: The current page number being displayed.
+          example: 1
+        items_per_page:
+          type: integer
+          description: Number of items per page.
+          example: 20
+
+    Card:
+      type: object
+      description: Represents a Pokémon TCG card object. This schema is a simplification; the actual SDK object might have many more fields.
+      properties:
+        id:
+          type: string
+          example: "base1-4"
+        name:
+          type: string
+          example: "Charizard"
+        nationalPokedexNumber:
+          type: integer
+          nullable: true
+          example: 6
+        imageUrl:
+          type: string
+          format: url
+          nullable: true
+          example: "https://images.pokemontcg.io/base1/4.png"
+        rarity:
+          type: string
+          nullable: true
+          example: "Rare Holo"
+        set:
+          type: object
+          properties:
+            id:
+              type: string
+              example: "base1"
+            name:
+              type: string
+              example: "Base Set"
+            series:
+              type: string
+              example: "Base"
+          nullable: true
+        types:
+          type: array
+          items:
+            type: string
+          nullable: true
+          example: ["Fire"]
+        subtypes:
+          type: array
+          items:
+            type: string
+          nullable: true
+          example: ["Stage 2"]
+        supertypes:
+          type: array
+          items:
+            type: string
+          nullable: true
+          example: ["Pokémon"]
+        hp:
+          type: string
+          nullable: true
+          example: "120"
+        number:
+          type: string
+          nullable: true
+          example: "4"
+        artist:
+          type: string
+          nullable: true
+          example: "Mitsuhiro Arita"
+        attacks:
+          type: array
+          items:
+            type: object
+            properties:
+              cost:
+                type: array
+                items:
+                  type: string
+              name:
+                type: string
+              text:
+                type: string
+              damage:
+                type: string
+              convertedEnergyCost:
+                type: integer
+          nullable: true
+        weaknesses:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              value:
+                type: string
+          nullable: true
+        resistances:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              value:
+                type: string
+          nullable: true
+        retreatCost:
+          type: array
+          items:
+            type: string
+          nullable: true
+        convertedRetreatCost:
+          type: integer
+          nullable: true
+        evolvesFrom:
+          type: string
+          nullable: true
+          example: "Charmeleon"
+        ancientTrait:
+          type: object
+          properties:
+            name:
+              type: string
+            text:
+              type: string
+          nullable: true
+        abilities:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              text:
+                type: string
+              type:
+                type: string
+          nullable: true
+        tcgplayer: # This is where prices are found
+          type: object
+          properties:
+            url:
+              type: string
+              format: url
+            updatedAt:
+              type: string
+              format: date-time
+            prices:
+              type: object # This part varies based on price type (holofoil, normal, etc.)
+              additionalProperties:
+                type: object
+                properties:
+                  low: { type: number, format: float }
+                  mid: { type: number, format: float }
+                  high: { type: number, format: float }
+                  market: { type: number, format: float }
+                  directLow: { type: number, format: float, nullable: true }
+          nullable: true
+        # Many other fields exist in the full SDK, this is a subset for common use.
+
+    Set:
+      type: object
+      description: Represents a Pokémon TCG set object.
+      properties:
+        id:
+          type: string
+          example: "base1"
+        name:
+          type: string
+          example: "Base Set"
+        series:
+          type: string
+          example: "Base"
+        printedTotal:
+          type: integer
+          example: 102
+        total:
+          type: integer
+          example: 102
+        legalities:
+          type: object
+          properties:
+            unlimited:
+              type: string
+              example: "Legal"
+            standard:
+              type: string
+              example: "Legal"
+            expanded:
+              type: string
+              example: "Legal"
+        ptcgoCode:
+          type: string
+          nullable: true
+          example: "BS"
+        releaseDate:
+          type: string
+          format: date
+          example: "1999/01/09"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2020/08/14 08:35:00"
+        images:
+          type: object
+          properties:
+            symbol:
+              type: string
+              format: url
+            logo:
+              type: string
+              format: url
