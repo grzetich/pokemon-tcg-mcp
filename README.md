@@ -1,14 +1,29 @@
 # Pokémon TCG MCP Server
-This repository contains a lightweight Model Context Protocol (MCP) server built with Flask and the pokemon-tcgsdk-python library. It exposes the full functionality of the Pokémon TCG API (pokemontcg.io) as a set of accessible HTTP endpoints, designed to be easily consumed by LLM (Large Language Model) clients, custom applications, or other services requiring Pokémon TCG data.FeaturesComprehensive Card Data: Retrieve detailed information for individual Pokémon cards or search for cards based on various criteria (name, set, type, rarity).Real-time Pricing: Fetch current TCGPlayer market prices for specific cards.Set Information: Access details about Pokémon TCG sets.Categorical Data: Query lists of all available card types, supertypes, subtypes, and rarities.Pagination: Supports pagination for list endpoints (/cards, /sets) to manage large datasets.RESTful API: Standard HTTP methods (GET) and JSON responses.Production-Ready Deployment: Configured for easy deployment to Heroku using Gunicorn.Getting StartedThese instructions will get you a copy of the project up and running on your local machine for development and testing.PrerequisitesBefore you begin, ensure you have the following installed:Python 3.xpip (Python package installer)InstallationClone the repository:git clone https://github.com/your-username/your-pokemon-mcp-server.git
-cd your-pokemon-mcp-server
-(Remember to replace your-username/your-pokemon-mcp-server with your actual repository URL)Install dependencies:It's highly recommended to use a virtual environment.python -m venv venv
-source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-pip install -r requirements.txt
-Obtain a Pokémon TCG API Key (Recommended):While the pokemontcg.io API allows some usage without a key, you will experience significantly higher rate limits by registering for a free API key at pokemontcg.io Developer Portal.API Key ConfigurationFor security and best practice, the server reads the API key from an environment variable.Local Development:Set the POKEMONTCG_API_KEY environment variable in your terminal session:export POKEMONTCG_API_KEY="YOUR_ACTUAL_API_KEY_GOES_HERE"
-Replace YOUR_ACTUAL_API_KEY_GOES_HERE with your key. This is temporary for the current session.Heroku Deployment:Configure a "Config Var" named POKEMONTCG_API_KEY with your actual API key value in your Heroku app settings.Running LocallyAfter installing dependencies and setting your API key:python app.py
-The server will typically run on http://127.0.0.1:5000/.Deployment to HerokuThis project is configured for straightforward deployment to Heroku. Ensure you have the Heroku CLI installed.Log in to Heroku CLI:heroku login
-Create a Heroku app:heroku create your-unique-app-name
-Set the API Key as a Config Var:heroku config:set POKEMONTCG_API_KEY="YOUR_ACTUAL_API_KEY_GOES_HERE" -a your-unique-app-name
-Push your code to Heroku:git push heroku main
-Open the deployed app:heroku open
-API EndpointsThe server exposes the following main endpoints:/GET: Home route, returns a welcome message./cardsGET: Search for cards.Query Parameters: name, set, type, rarity (e.g., /cards?name=Pikachu&set=Base&limit=10&page=1)/cards/<string:card_id>GET: Get a specific card by its ID (e.g., /cards/base1-4)/card_priceGET: Get the TCGPlayer market price for a card by name (e.g., /card_price?card_name=Charizard)/setsGET: Get all sets, or search by name.Query Parameters: name (e.g., /sets?name=Base)/sets/<string:set_id>GET: Get a specific set by its ID (e.g., /sets/base1)/typesGET: Get all card types./supertypesGET: Get all card supertypes./subtypesGET: Get all card subtypes./raritiesGET: Get all card rarities.ContributingContributions are welcome! If you have suggestions for improvements, bug fixes, or new features, please open an issue or submit a pull request.LicenseThis project is open source and available under the MIT License.
+This repository contains a lightweight Model Context Protocol (MCP) server built with Flask and the pokemon-tcgsdk-python library. It exposes the full functionality of the Pokémon TCG API (pokemontcg.io) as a set of accessible HTTP endpoints, designed to be easily consumed by LLM (Large Language Model) clients, custom applications, or other services requiring Pokémon TCG data.
+
+## Features
+* Comprehensive Card Data: Retrieve detailed information for individual Pokémon cards or search for cards based on various criteria (name, set, type, rarity).
+* Real-time Pricing: Fetch current TCGPlayer market prices for specific cards.
+* Set Information: Access details about Pokémon TCG sets.
+* Categorical Data: Query lists of all available card types, supertypes, subtypes, and rarities.
+* Pagination: Supports pagination for list endpoints (/cards, /sets) to manage large datasets.
+* RESTful API: Standard HTTP methods (GET) and JSON responses.
+* Production-Ready Deployment: Configured for easy deployment to Heroku using Gunicorn.
+
+## API Endpoints
+The server exposes the following main endpoints:
+* /GET: Home route, returns a welcome message.
+* /cardsGET: Search for cards.Query Parameters: name, set, type, rarity (e.g., /cards?name=Pikachu&set=Base&limit=10&page=1)
+* /cards/<string:card_id>GET: Get a specific card by its ID (e.g., /cards/base1-4)
+* /card_priceGET: Get the TCGPlayer market price for a card by name (e.g., /card_price?card_name=Charizard)
+* /setsGET: Get all sets, or search by name.Query Parameters: name (e.g., /sets?name=Base)/sets/<string:set_id>GET: Get a specific set by its ID (e.g., /sets/base1)
+* /typesGET: Get all card types.
+* /supertypesGET: Get all card supertypes.
+* /subtypesGET: Get all card subtypes.
+* /raritiesGET: Get all card rarities.
+
+## Contributing
+Contributions are welcome! If you have suggestions for improvements, bug fixes, or new features, please open an issue or submit a pull request.
+
+## License
+This project is open source and available under the MIT License.
