@@ -3,15 +3,14 @@ import pokemontcgsdk # Corrected import for pokemontcgsdk.api_key
 from pokemontcgsdk import Card, Set, Type, Supertype, Subtype, Rarity # Import classes directly
 import math # For pagination calculations
 import os # For Heroku port dynamic assignment
+from dotenv import load_dotenv
+load_dotenv() # This loads the variables from .env into os.environt
+
+# Now os.environ.get will find the variable from .env
+pokemontcgsdk.api_key = os.environ.get('POKEMONTCG_API_KEY')
 
 # Initialize the Flask application
 app = Flask(__name__)
-
-# --- Configuration ---
-# Set the API key for higher rate limits if needed.
-# pokemontcgsdk.api_key = "YOUR_POKEMON_TCG_API_KEY_HERE"
-# Read API key from environment variable
-pokemontcgsdk.api_key = os.environ.get('POKEMONTCG_API_KEY')
 
 # --- Helper Function for Object Serialization ---
 def serialize_tcg_object(obj):
