@@ -11,7 +11,12 @@ app = Flask(__name__)
 # --- Configuration ---
 # Load .env variables if present (for local testing)
 # This should be at the very top, but load_dotenv() itself should be quick.
-load_dotenv()
+try:
+    load_dotenv()
+    print("DEBUG: .env loaded successfully (if .env file exists).")
+except Exception as e:
+    print(f"DEBUG: Could not load .env file: {e}")
+
 
 # --- Global variable to hold API key, initialized lazily ---
 _pokemontcgsdk_initialized = False
@@ -23,15 +28,19 @@ def initialize_pokemontcgsdk():
     """
     global _pokemontcgsdk_initialized
     if not _pokemontcgsdk_initialized:
+        print("INFO: Attempting to initialize pokemontcgsdk...")
         api_key = os.environ.get('POKEMONTCG_API_KEY')
         if not api_key:
-            print("ERROR: POKEMONTCG_API_KEY environment variable is not set!")
+            print("ERROR: POKEMONTCG_API_KEY environment variable is NOT set! This will limit SDK functionality.")
             # In a real production app, you might raise an error or return a 500 here
             # but for startup, we'll let it proceed and log the error.
         else:
             pokemontcgsdk.api_key = api_key
             print("INFO: pokemontcgsdk API key set successfully.")
         _pokemontcgsdk_initialized = True
+        print("INFO: pokemontcgsdk initialization complete.")
+    else:
+        print("INFO: pokemontcgsdk already initialized for this worker.")
 
 # --- Helper Function for Object Serialization ---
 def serialize_tcg_object(obj):
@@ -89,13 +98,19 @@ def paginate_results(results, page, limit):
     }
 
 @app.before_request
-def before_first_request():
+def before_any_request():
     """
     Ensures pokemontcgsdk is initialized before handling any request.
     This runs once per worker process.
     """
-    initialize_pokemontcgsdk()
-    print("INFO: Received first request, SDK initialized (or already was).")
+    try:
+        initialize_pokemontcgsdk()
+        print("INFO: before_request hook executed. SDK check complete.")
+    except Exception as e:
+        print(f"CRITICAL ERROR: Exception in before_request hook during SDK initialization: {str(e)}")
+        # In a production scenario, you might want to return an error page here
+        # or log this to an error tracking service.
+        # For now, we'll let the request proceed to see if more errors surface.
 
 
 @app.route('/')
@@ -130,10 +145,13 @@ def get_cards():
         q_string.append(f'{key}:"{value}"')
 
     try:
+        print(f"INFO: Calling Card.where with q='{' '.join(q_string)}'")
         if q_string:
             all_cards = Card.where(q=' '.join(q_string))
         else:
+            print("INFO: Calling Card.all() - This can be a heavy operation.")
             all_cards = Card.all()
+        print(f"INFO: Card query returned {len(all_cards)} results.")
 
         cards_data = [serialize_tcg_object(card) for card in all_cards]
 
@@ -154,6 +172,9 @@ def get_cards():
 
     except Exception as e:
         print(f"ERROR: An error occurred in /cards: {str(e)}")
+        # Print full traceback for better debugging
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "status": "server_error",
             "message": f"An error occurred: {str(e)}"
@@ -167,19 +188,24 @@ def get_card_by_id(card_id):
     """
     print(f"INFO: /cards/{card_id} route accessed.")
     try:
+        print(f"INFO: Calling Card.find('{card_id}')")
         card = Card.find(card_id)
         if not card:
+            print(f"INFO: Card '{card_id}' not found.")
             return jsonify({
                 "status": "not_found",
                 "card_id": card_id,
                 "message": f"No Pokémon card found with ID '{card_id}'."
             }), 404
+        print(f"INFO: Card '{card_id}' found.")
         return jsonify({
             "status": "success",
             "card": serialize_tcg_object(card)
         }), 200
     except Exception as e:
         print(f"ERROR: An error occurred in /cards/<id>: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "status": "server_error",
             "message": f"An error occurred: {str(e)}"
@@ -202,9 +228,12 @@ def get_card_price():
         }), 400
 
     try:
+        print(f"INFO: Calling Card.where for price lookup with name='{card_name}'")
         cards = Card.where(q=f'name:"{card_name}"')
+        print(f"INFO: Card.where for price lookup returned {len(cards)} results.")
 
         if not cards:
+            print(f"INFO: No cards found for price lookup with name='{card_name}'.")
             return jsonify({
                 "status": "not_found",
                 "card_name": card_name,
@@ -215,13 +244,16 @@ def get_card_price():
 
         price_data = {}
         if hasattr(card, 'tcgplayer') and card.tcgplayer and hasattr(card.tcgplayer, 'prices'):
+            print("INFO: TCGPlayer data found.")
             for price_type, prices in card.tcgplayer.prices.__dict__.items():
                 if prices and hasattr(prices, 'market'):
                     price_data[price_type] = prices.market
                 elif prices and hasattr(prices, 'averageSellPrice'):
                     price_data[price_type] = prices.averageSellPrice
+            print(f"INFO: Extracted price data: {price_data}")
 
         if not price_data:
+            print("INFO: No TCGPlayer price data available for the card.")
             return jsonify({
                 "status": "no_price_data",
                 "card_name": card.name,
@@ -243,6 +275,8 @@ def get_card_price():
 
     except Exception as e:
         print(f"ERROR: An error occurred in /card_price: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "status": "server_error",
             "message": f"An error occurred: {str(e)}"
@@ -267,10 +301,13 @@ def get_sets():
         return jsonify({"status": "error", "message": "Page and limit must be positive integers."}), 400
 
     try:
+        print(f"INFO: Calling Set.where with name='{set_name}' (if provided).")
         if set_name:
             all_sets = Set.where(q=f'name:"{set_name}"')
         else:
+            print("INFO: Calling Set.all() - This can be a heavy operation.")
             all_sets = Set.all()
+        print(f"INFO: Set query returned {len(all_sets)} results.")
 
         sets_data = [serialize_tcg_object(s) for s in all_sets]
         paginated_response = paginate_results(sets_data, page, limit)
@@ -289,6 +326,8 @@ def get_sets():
         }), 200
     except Exception as e:
         print(f"ERROR: An error occurred in /sets: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "status": "server_error",
             "message": f"An error occurred: {str(e)}"
@@ -302,19 +341,24 @@ def get_set_by_id(set_id):
     """
     print(f"INFO: /sets/{set_id} route accessed.")
     try:
+        print(f"INFO: Calling Set.find('{set_id}')")
         set_obj = Set.find(set_id)
         if not set_obj:
+            print(f"INFO: Set '{set_id}' not found.")
             return jsonify({
                 "status": "not_found",
                 "set_id": set_id,
                 "message": f"No Pokémon set found with ID '{set_id}'."
             }), 404
+        print(f"INFO: Set '{set_id}' found.")
         return jsonify({
             "status": "success",
             "set": serialize_tcg_object(set_obj)
         }), 200
     except Exception as e:
         print(f"ERROR: An error occurred in /sets/<id>: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "status": "server_error",
             "message": f"An error occurred: {str(e)}"
@@ -329,10 +373,14 @@ def get_types():
     """
     print("INFO: /types route accessed.")
     try:
+        print("INFO: Calling Type.all()")
         types = Type.all()
+        print(f"INFO: Type.all() returned {len(types)} results.")
         return jsonify({"status": "success", "types": types}), 200
     except Exception as e:
         print(f"ERROR: An error occurred in /types: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "status": "server_error",
             "message": f"An error occurred: {str(e)}"
@@ -345,10 +393,14 @@ def get_supertypes():
     """
     print("INFO: /supertypes route accessed.")
     try:
+        print("INFO: Calling Supertype.all()")
         supertypes = Supertype.all()
+        print(f"INFO: Supertype.all() returned {len(supertypes)} results.")
         return jsonify({"status": "success", "supertypes": supertypes}), 200
     except Exception as e:
         print(f"ERROR: An error occurred in /supertypes: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "status": "server_error",
             "message": f"An error occurred: {str(e)}"
@@ -361,10 +413,14 @@ def get_subtypes():
     """
     print("INFO: /subtypes route accessed.")
     try:
+        print("INFO: Calling Subtype.all()")
         subtypes = Subtype.all()
+        print(f"INFO: Subtype.all() returned {len(subtypes)} results.")
         return jsonify({"status": "success", "subtypes": subtypes}), 200
     except Exception as e:
         print(f"ERROR: An error occurred in /subtypes: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "status": "server_error",
             "message": f"An error occurred: {str(e)}"
@@ -377,10 +433,14 @@ def get_rarities():
     """
     print("INFO: /rarities route accessed.")
     try:
+        print("INFO: Calling Rarity.all()")
         rarities = Rarity.all()
+        print(f"INFO: Rarity.all() returned {len(rarities)} results.")
         return jsonify({"status": "success", "rarities": rarities}), 200
     except Exception as e:
         print(f"ERROR: An error occurred in /rarities: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "status": "server_error",
             "message": f"An error occurred: {str(e)}"
