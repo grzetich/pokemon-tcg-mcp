@@ -1,69 +1,80 @@
 from flask import Flask, request, jsonify
+import pokemontcgsdk
+from pokemontcgsdk import Card, Set, Type, Supertype, Subtype, Rarity
+import math
 import os
-import sys # Import sys for path manipulation
-import importlib # For lazy import
+from dotenv import load_dotenv # For local development environment variables
 import traceback # For printing full tracebacks
+
+# --- Configuration ---
+# Load .env variables if present (for local testing)
+# On Heroku, environment variables are managed via Config Vars and accessed directly via os.environ
+load_dotenv()
+
+# Set the API key for the pokemontcgsdk
+pokemontcgsdk.api_key = os.environ.get('POKEMONTCG_API_KEY')
+if not pokemontcgsdk.api_key:
+    print("WARNING: POKEMONTCG_API_KEY environment variable is not set. API calls may be rate-limited or fail.")
 
 # Initialize the Flask application
 app = Flask(__name__)
 
-# --- Global variable to hold tcg_service module and initialization status ---
-_tcg_service_module = None
-_tcg_service_initialized = False
-
-def initialize_tcg_service():
+# --- Helper Function for Object Serialization ---
+def serialize_tcg_object(obj):
     """
-    Imports and initializes the tcg_service module.
-    This function will be called on the first request to ensure the app is fully up.
+    Recursively converts pokemontcgsdk objects and their nested attributes
+    into a dictionary suitable for JSON serialization.
+    Handles potential byte strings by decoding them to UTF-8.
     """
-    global _tcg_service_module
-    global _tcg_service_initialized
-
-    if not _tcg_service_initialized:
-        print("INFO: Attempting to LAZY IMPORT and INITIALIZE tcg_service...")
+    if isinstance(obj, (int, float, str, bool)) or obj is None:
+        return obj
+    if isinstance(obj, bytes):
         try:
-            # Add current directory to sys.path to allow importing tcg_service
-            # This is important for Heroku where current dir might not be in path
-            if os.getcwd() not in sys.path:
-                sys.path.insert(0, os.getcwd())
-                print(f"DEBUG: Added {os.getcwd()} to sys.path.")
+            return obj.decode('utf-8')
+        except UnicodeDecodeError:
+            return f"<binary_data: {len(obj)} bytes>"
+    if isinstance(obj, list):
+        return [serialize_tcg_object(item) for item in obj]
+    if isinstance(obj, dict):
+        return {key: serialize_tcg_object(value) for key, value in obj.items()}
 
-            # Import tcg_service only when needed
-            _tcg_service_module = importlib.import_module('tcg_service')
-            print("INFO: tcg_service module imported successfully.")
-
-            api_key = os.environ.get('POKEMONTCG_API_KEY')
-            _tcg_service_module.set_sdk_api_key(api_key) # Pass API key to the service module
-            
-            _tcg_service_initialized = True
-            print("INFO: tcg_service initialization complete.")
-        except Exception as e:
-            print(f"CRITICAL ERROR: Exception during tcg_service import or initialization: {str(e)}")
-            traceback.print_exc() # Print full traceback for this critical error
-            _tcg_service_initialized = False # Mark as not initialized on failure
-            _tcg_service_module = None # Ensure it's None if init failed
-            raise # Re-raise the exception to indicate a critical failure
-    else:
-        print("INFO: tcg_service already initialized for this worker.")
+    if hasattr(obj, '__dict__'):
+        data = {}
+        for key, value in obj.__dict__.items():
+            if not key.startswith('_'): # Avoid internal SDK attributes
+                data[key] = serialize_tcg_object(value)
+        return data
+    
+    return str(obj) # Fallback for unhandled types
 
 
-@app.before_request
-def before_any_request():
+# --- Helper Function for Pagination ---
+def paginate_results(results, page, limit):
     """
-    Ensures tcg_service is initialized before handling any request.
-    This runs once per worker process.
+    Helper function to paginate a list of results.
     """
-    try:
-        initialize_tcg_service()
-        print("INFO: before_request hook executed. tcg_service check complete.")
-    except Exception as e:
-        print(f"CRITICAL ERROR: Exception in before_request hook during tcg_service initialization: {str(e)}")
-        # If service init fails, we cannot proceed. Return a 500 error.
-        return jsonify({
-            "status": "server_error",
-            "message": f"Critical server error: Service initialization failed. Please check server logs. Error: {str(e)}"
-        }), 500
+    if not isinstance(results, list):
+        return results # Not a list, no pagination needed
 
+    total_items = len(results)
+    total_pages = math.ceil(total_items / limit) if limit > 0 else 1
+
+    start_index = (page - 1) * limit
+    end_index = start_index + limit
+
+    paginated_data = results[start_index:end_index]
+
+    return {
+        "data": paginated_data,
+        "pagination": {
+            "total_items": total_items,
+            "total_pages": total_pages,
+            "current_page": page,
+            "items_per_page": limit
+        }
+    }
+
+# --- Routes ---
 
 @app.route('/')
 def home():
@@ -92,10 +103,24 @@ def get_cards():
     if page <= 0:
         return jsonify({"status": "error", "message": "Page must be a positive integer."}), 400
 
-    try:
-        paginated_response = _tcg_service_module.get_cards_service(query_params, page, limit)
+    q_string = []
+    for key, value in query_params.items():
+        q_string.append(f'{key}:"{value}"')
 
-        if not paginated_response['data'] and query_params:
+    try:
+        print(f"INFO: Calling Card.where with q='{' '.join(q_string)}'")
+        if q_string:
+            all_cards = Card.where(q=' '.join(q_string))
+        else:
+            print("INFO: Calling Card.all() - This can be a heavy operation.")
+            all_cards = Card.all()
+        print(f"INFO: Card query returned {len(all_cards)} results.")
+
+        cards_data = [serialize_tcg_object(card) for card in all_cards]
+
+        paginated_response = paginate_results(cards_data, page, limit)
+
+        if not paginated_response['data'] and q_string:
              return jsonify({
                 "status": "not_found",
                 "query": query_params,
@@ -124,8 +149,10 @@ def get_card_by_id(card_id):
     """
     print(f"INFO: /cards/{card_id} route accessed.")
     try:
-        card_data = _tcg_service_module.get_card_by_id_service(card_id)
-        if not card_data:
+        print(f"INFO: Calling Card.find('{card_id}')")
+        card = Card.find(card_id)
+        if not card:
+            print(f"INFO: Card '{card_id}' not found.")
             return jsonify({
                 "status": "not_found",
                 "card_id": card_id,
@@ -133,7 +160,7 @@ def get_card_by_id(card_id):
             }), 404
         return jsonify({
             "status": "success",
-            "card": card_data
+            "card": serialize_tcg_object(card)
         }), 200
     except Exception as e:
         print(f"ERROR: An error occurred in /cards/<id>: {str(e)}")
@@ -154,36 +181,56 @@ def get_card_price():
     card_name = request.args.get('card_name')
 
     if not card_name:
-        return jsonify({"status": "error", "message": "Missing 'card_name' query parameter."}), 400
+        return jsonify({
+            "status": "error",
+            "message": "Missing 'card_name' query parameter."
+        }), 400
 
     try:
-        card_data, status_type, price_data = _tcg_service_module.get_card_price_service(card_name)
+        print(f"INFO: Calling Card.where for price lookup with name='{card_name}'")
+        cards = Card.where(q=f'name:"{card_name}"')
+        print(f"INFO: Card.where for price lookup returned {len(cards)} results.")
 
-        if status_type == "not_found":
+        if not cards:
+            print(f"INFO: No cards found for price lookup with name='{card_name}'.")
             return jsonify({
                 "status": "not_found",
                 "card_name": card_name,
                 "message": f"No Pokémon card found with the name '{card_name}'."
-            }), 404
-        elif status_type == "no_price_data":
+            }), 200
+
+        card = cards[0]
+
+        price_data = {}
+        if hasattr(card, 'tcgplayer') and card.tcgplayer and hasattr(card.tcgplayer, 'prices'):
+            print("INFO: TCGPlayer data found.")
+            for price_type, prices in card.tcgplayer.prices.__dict__.items():
+                if prices and hasattr(prices, 'market'):
+                    price_data[price_type] = prices.market
+                elif prices and hasattr(prices, 'averageSellPrice'):
+                    price_data[price_type] = prices.averageSellPrice
+            print(f"INFO: Extracted price data: {price_data}")
+
+        if not price_data:
+            print("INFO: No TCGPlayer price data available for the card.")
             return jsonify({
                 "status": "no_price_data",
-                "card_name": card_data.get('name'),
-                "card_id": card_data.get('id'),
-                "card_image": card_data.get('images', {}).get('small'),
-                "message": f"No TCGPlayer price data available for '{card_data.get('name')}'."
+                "card_name": card.name,
+                "card_id": card.id,
+                "card_image": card.images.small if hasattr(card.images, 'small') else None,
+                "message": f"No TCGPlayer price data available for '{card.name}'."
             }), 200
-        else: # success
-            return jsonify({
-                "status": "success",
-                "card_name": card_data.get('name'),
-                "card_id": card_data.get('id'),
-                "set_name": card_data.get('set', {}).get('name'),
-                "rarity": card_data.get('rarity'),
-                "card_image": card_data.get('images', {}).get('small'),
-                "prices": price_data,
-                "message": f"Price data retrieved for '{card_data.get('name')}'."
-            }), 200
+
+        return jsonify({
+            "status": "success",
+            "card_name": card.name,
+            "card_id": card.id,
+            "set_name": card.set.name if hasattr(card, 'set') and hasattr(card.set, 'name') else None,
+            "rarity": card.rarity if hasattr(card, 'rarity') else None,
+            "card_image": card.images.small if hasattr(card.images, 'small') else None,
+            "prices": price_data,
+            "message": f"Price data retrieved for '{card.name}'."
+        }), 200
 
     except Exception as e:
         print(f"ERROR: An error occurred in /card_price: {str(e)}")
@@ -208,13 +255,20 @@ def get_sets():
     page = int(request.args.get('page', 1))
     limit = int(request.args.get('limit', 20))
 
-    if limit <= 0:
-        return jsonify({"status": "error", "message": "Page and limit must be positive integers."}), 400
-    if page <= 0:
+    if limit <= 0 or page <= 0:
         return jsonify({"status": "error", "message": "Page and limit must be positive integers."}), 400
 
     try:
-        paginated_response = _tcg_service_module.get_sets_service(set_name, page, limit)
+        print(f"INFO: Calling Set.where with name='{set_name}' (if provided).")
+        if set_name:
+            all_sets = Set.where(q=f'name:"{set_name}"')
+        else:
+            print("INFO: Calling Set.all() - This can be a heavy operation.")
+            all_sets = Set.all()
+        print(f"INFO: Set query returned {len(all_sets)} results.")
+
+        sets_data = [serialize_tcg_object(s) for s in all_sets]
+        paginated_response = paginate_results(sets_data, page, limit)
 
         if not paginated_response['data'] and set_name:
             return jsonify({
@@ -244,8 +298,10 @@ def get_set_by_id(set_id):
     """
     print(f"INFO: /sets/{set_id} route accessed.")
     try:
-        set_data = _tcg_service_module.get_set_by_id_service(set_id)
-        if not set_data:
+        print(f"INFO: Calling Set.find('{set_id}')")
+        set_obj = Set.find(set_id)
+        if not set_obj:
+            print(f"INFO: Set '{set_id}' not found.")
             return jsonify({
                 "status": "not_found",
                 "set_id": set_id,
@@ -253,7 +309,7 @@ def get_set_by_id(set_id):
             }), 404
         return jsonify({
             "status": "success",
-            "set": set_data
+            "set": serialize_tcg_object(set_obj)
         }), 200
     except Exception as e:
         print(f"ERROR: An error occurred in /sets/<id>: {str(e)}")
@@ -272,7 +328,8 @@ def get_types():
     """
     print("INFO: /types route accessed.")
     try:
-        types = _tcg_service_module.get_types_service()
+        print("INFO: Calling Type.all()")
+        types = Type.all()
         return jsonify({"status": "success", "types": types}), 200
     except Exception as e:
         print(f"ERROR: An error occurred in /types: {str(e)}")
@@ -289,7 +346,8 @@ def get_supertypes():
     """
     print("INFO: /supertypes route accessed.")
     try:
-        supertypes = _tcg_service_module.get_supertypes_service()
+        print("INFO: Calling Supertype.all()")
+        supertypes = Supertype.all()
         return jsonify({"status": "success", "supertypes": supertypes}), 200
     except Exception as e:
         print(f"ERROR: An error occurred in /supertypes: {str(e)}")
@@ -306,7 +364,8 @@ def get_subtypes():
     """
     print("INFO: /subtypes route accessed.")
     try:
-        subtypes = _tcg_service_module.get_subtypes_service()
+        print("INFO: Calling Subtype.all()")
+        subtypes = Subtype.all()
         return jsonify({"status": "success", "subtypes": subtypes}), 200
     except Exception as e:
         print(f"ERROR: An error occurred in /subtypes: {str(e)}")
@@ -323,7 +382,8 @@ def get_rarities():
     """
     print("INFO: /rarities route accessed.")
     try:
-        rarities = _tcg_service_module.get_rarities_service()
+        print("INFO: Calling Rarity.all()")
+        rarities = Rarity.all()
         return jsonify({"status": "success", "rarities": rarities}), 200
     except Exception as e:
         print(f"ERROR: An error occurred in /rarities: {str(e)}")
