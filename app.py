@@ -1,18 +1,18 @@
 from flask import Flask, request, jsonify
 import math
 import os
-from dotenv import load_dotenv
+# from dotenv import load_dotenv # Removed: Not needed for Heroku deployment
 
 # Initialize the Flask application
 app = Flask(__name__)
 
 # --- Configuration ---
 # Load .env variables if present (for local testing)
-try:
-    load_dotenv()
-    print("DEBUG: .env loaded successfully (if .env file exists).")
-except Exception as e:
-    print(f"DEBUG: Could not load .env file: {e}")
+# try:
+#     load_dotenv()
+#     print("DEBUG: .env loaded successfully (if .env file exists).")
+# except Exception as e:
+#     print(f"DEBUG: Could not load .env file: {e}")
 
 # --- Global variable to hold SDK instance and initialization status ---
 _pokemontcgsdk_initialized = False
