@@ -1,22 +1,7 @@
 {
     "mcpServers": {
-        
-        "filesystem": {
-            "command": "npx",
-            "args": [
-                "-y",
-                "@modelcontextprotocol/server-filesystem",
-                "."
-            ]
-        },
-        
-        "research": {
+            "pokemon-tcg-mcp": {
             "command": "uv",
-            "args": ["run", "research_server.py"]
-        },
-
-        "pokemon-tcg-mcp":
-            "command": "uv",
-            "args": ["run", "orchestrator_app.py"]
+            "args": ["run", "/path/to/orchestrator_app.py"]
     }
 }
