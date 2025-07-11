@@ -3,5 +3,6 @@
             "pokemon-tcg-mcp": {
             "command": "uv",
             "args": ["run", "/path/to/orchestrator_app.py"]
+        }
     }
 }
