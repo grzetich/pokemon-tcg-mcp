@@ -1,9 +1,8 @@
 {
     "mcpServers": {
-        
-        "pokemon-tcg-mcp": {
-            "command": "python",
-            "args": ["orchestrator_app.py"]
+            "pokemon-tcg-mcp": {
+            "command": "uv",
+            "args": ["run", "/path/to/orchestrator_app.py"]
         }
     }
 }
