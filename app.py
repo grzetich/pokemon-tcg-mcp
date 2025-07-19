@@ -90,6 +90,74 @@ def get_card_by_id(card_id):
     except Exception as e:
         return jsonify({"status": "server_error", "message": str(e)}), 500
 
+@app.route('/card_price', methods=['GET'])
+def get_card_price():
+    """Finds the price of a Pokémon TCG card by name."""
+    card_name = request.args.get('card_name')
+    if not card_name:
+        return jsonify({"status": "error", "message": "Missing 'card_name' query parameter."}), 400
+    try:
+        cards = Card.where(q=f'name:"{card_name}"')
+        if not cards:
+            return jsonify({"status": "not_found", "card_name": card_name, "message": f"No card found with name '{card_name}'."}), 404
+        card = cards[0]
+        price_data = {}
+        if hasattr(card, 'tcgplayer') and card.tcgplayer and hasattr(card.tcgplayer, 'prices'):
+            for price_type, prices in card.tcgplayer.prices.__dict__.items():
+                if prices and hasattr(prices, 'market'):
+                    price_data[price_type] = prices.market
+        if not price_data:
+            return jsonify({"status": "no_price_data", "card_name": card.name, "message": "No TCGPlayer price data available."}), 200
+        return jsonify({"status": "success", "card_name": card.name, "prices": price_data}), 200
+    except Exception as e:
+        return jsonify({"status": "server_error", "message": str(e)}), 500
+
+@app.route('/sets', methods=['GET'])
+def get_sets():
+    """Gets all Pokémon TCG sets."""
+    try:
+        all_sets = Set.all()
+        sets_data = [serialize_tcg_object(s) for s in all_sets]
+        return jsonify({"status": "success", "results": sets_data}), 200
+    except Exception as e:
+        return jsonify({"status": "server_error", "message": str(e)}), 500
+
+@app.route('/types', methods=['GET'])
+def get_types():
+    """Gets all Pokémon TCG card types."""
+    try:
+        types = Type.all()
+        return jsonify({"status": "success", "types": types}), 200
+    except Exception as e:
+        return jsonify({"status": "server_error", "message": str(e)}), 500
+
+@app.route('/supertypes', methods=['GET'])
+def get_supertypes():
+    """Gets all Pokémon TCG card supertypes."""
+    try:
+        supertypes = Supertype.all()
+        return jsonify({"status": "success", "supertypes": supertypes}), 200
+    except Exception as e:
+        return jsonify({"status": "server_error", "message": str(e)}), 500
+
+@app.route('/subtypes', methods=['GET'])
+def get_subtypes():
+    """Gets all Pokémon TCG card subtypes."""
+    try:
+        subtypes = Subtype.all()
+        return jsonify({"status": "success", "subtypes": subtypes}), 200
+    except Exception as e:
+        return jsonify({"status": "server_error", "message": str(e)}), 500
+
+@app.route('/rarities', methods=['GET'])
+def get_rarities():
+    """Gets all Pokémon TCG card rarities."""
+    try:
+        rarities = Rarity.all()
+        return jsonify({"status": "success", "rarities": rarities}), 200
+    except Exception as e:
+        return jsonify({"status": "server_error", "message": str(e)}), 500
+
 # This block is for local development testing only
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
