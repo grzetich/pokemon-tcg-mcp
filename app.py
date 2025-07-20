@@ -5,6 +5,7 @@ import math
 import os
 from dotenv import load_dotenv
 import traceback
+import difflib # Import the library for finding close matches
 
 # Load .env variables for local testing
 load_dotenv()
@@ -62,20 +63,64 @@ def home():
 
 @app.route('/cards', methods=['GET'])
 def get_cards():
-    """Searches for cards with various query parameters."""
+    """Searches for cards with various query parameters and provides suggestions."""
     query_params = {k: v for k, v in request.args.items() if k not in ['page', 'limit']}
     page = int(request.args.get('page', 1))
     limit = int(request.args.get('limit', 20))
     if limit <= 0 or page <= 0:
         return jsonify({"status": "error", "message": "Page and limit must be positive integers."}), 400
+    
     q_string = [f'{key}:"{value}"' for key, value in query_params.items()]
+    
     try:
         all_cards = Card.where(q=' '.join(q_string)) if q_string else Card.all()
+        
+        # If no cards are found, check for suggestions on specified parameters
+        if not all_cards and query_params:
+            suggestions = {}
+            
+            # Helper function to get suggestions for a given parameter
+            def find_suggestion(param_name, all_values_func):
+                if param_name in query_params:
+                    user_value = query_params[param_name]
+                    try:
+                        all_values = all_values_func()
+                        # If the values are objects (like Sets), extract their names
+                        if all_values and not isinstance(all_values[0], str):
+                            all_names = [v.name for v in all_values]
+                        else:
+                            all_names = all_values
+                        
+                        close_matches = difflib.get_close_matches(user_value, all_names, n=1, cutoff=0.6)
+                        if close_matches:
+                            suggestions[param_name] = f"Did you mean '{close_matches[0]}'?"
+                    except Exception:
+                        # If the API call to get all values fails, just skip suggestions for this param
+                        pass
+
+            # Check each parameter for potential suggestions
+            find_suggestion('set', Set.all)
+            find_suggestion('type', Type.all)
+            find_suggestion('rarity', Rarity.all)
+            find_suggestion('supertype', Supertype.all)
+            find_suggestion('subtype', Subtype.all)
+
+            if suggestions:
+                return jsonify({
+                    "status": "not_found",
+                    "query": query_params,
+                    "message": "No Pokémon cards found.",
+                    "suggestions": suggestions
+                }), 404
+
         cards_data = [serialize_tcg_object(card) for card in all_cards]
         paginated_response = paginate_results(cards_data, page, limit)
+        
         if not paginated_response['data'] and q_string:
             return jsonify({"status": "not_found", "query": query_params, "message": "No Pokémon cards found."}), 404
+            
         return jsonify({"status": "success", "results": paginated_response['data'], "pagination": paginated_response['pagination']}), 200
+        
     except Exception as e:
         return jsonify({"status": "server_error", "message": str(e)}), 500
 

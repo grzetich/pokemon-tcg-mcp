@@ -92,7 +92,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: No cards found matching the criteria.
+          description: No cards found matching the criteria. May include a suggestion for a corrected set name if applicable.
           content:
             application/json:
               schema:
@@ -103,10 +103,23 @@ paths:
                     example: not_found
                   query:
                     type: object
-                    example: {"name": "NonExistent"}
+                    example: {"name": "Pikachu", "set": "Base Set 2"}
                   message:
                     type: string
-                    example: "No Pokémon cards found matching your criteria."
+                    example: "No Pokémon cards found."
+                  suggestions:
+                    type: object
+                    description: An optional field containing suggestions for correcting query parameters. The keys of this object will be the parameter names (e.g., 'set', 'type'), and the values will be the suggested corrections.
+                    properties:
+                      set:
+                        type: string
+                        example: "Did you mean 'Base Set 2'?"
+                      type:
+                        type: string
+                        example: "Did you mean 'Lightning'?"
+                      rarity:
+                        type: string
+                        example: "Did you mean 'Rare Holo VMAX'?"
         '500':
           description: Internal server error.
           content:
