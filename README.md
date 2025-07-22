@@ -1,7 +1,7 @@
 # Pokémon TCG Model Context Protocol (MCP) Server
 This repository contains a lightweight Model Context Protocol (MCP) server built with Python Flask. It exposes the full functionality of the Pokémon TCG API (pokemontcg.io) as a set of accessible HTTP endpoints, designed to be easily consumed by LLM (Large Language Model) clients (via an orchestrator), custom applications, or other services requiring Pokémon TCG data.
 
-For detailed information on all available endpoints, parameters, and response formats, please see the [**API Reference**](./docs/API_REFERENCE.md).
+For detailed information on all available endpoints, parameters, and response formats, please see the [**API Reference**](https://grzetich.github.io/pokemon-tcg-mcp/).
 
 ## Features
 * Comprehensive Card Data: Retrieve detailed information for individual Pokémon cards or search for cards based on various criteria (name, set, type, rarity).Real-time 
