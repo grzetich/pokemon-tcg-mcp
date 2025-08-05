@@ -27,7 +27,7 @@ For detailed information on all available endpoints, parameters, and response fo
 This server is designed to work in conjunction with a local orchestrator script (orchestrator_app.py) that handles the Model Context Protocol (MCP) communication with LLM clients (like Claude). The orchestrator acts as a local proxy, translating LLM tool calls into HTTP requests to this deployed server.
 
 ### To install: 
-1. Download the appropriate compressed file for your operating system (install.tar.gz or install.zip) from this repository.
+1. Download the appropriate compressed file for your operating system ([install.tar.gz](https://github.com/grzetich/pokemon-tcg-mcp/blob/ebfe93e220bd6e7fbd2cfe0cb693e6b43a6e20da/install.tar.gz) or [install.zip](https://github.com/grzetich/pokemon-tcg-mcp/blob/ebfe93e220bd6e7fbd2cfe0cb693e6b43a6e20da/install.zip)) from this repository.
 2. Extract *orchestrator_app.py* to your hard drive. Note the path to the file, you'll need it later.
 3. Install the [**Requests**](https://pypi.org/project/requests/) Python library. It's required by *orchestrator_app.py*.
 4. Depending on your configuration, extract *mcp.json* to an appropriate location. Or, copy the following lines and paste them into your configuration file.
