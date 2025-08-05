@@ -1,14 +1,11 @@
 openapi: 3.0.0
 info:
-  title: Pokémon TCG MCP Server API
-  description: A Model Context Protocol (MCP) server that exposes comprehensive Pokémon TCG data and pricing information, ideal for LLM integration and other applications. This server wraps the `pokemontcg.io` API via the `pokemon-tcgsdk-python` library.
+  title: Pokémon TCG API
+  description: API for accessing Pokémon TCG data.
   version: 1.0.0
 servers:
-  - url: https://your-pokemon-mcp-app-name.herokuapp.com # Replace with your actual Heroku app URL
-    description: Production Heroku deployment
-  - url: http://127.0.0.1:5000
-    description: Local Development Server
-
+  - url: https://pocket-monster-tcg-mcp.onrender.com
+    description: Production server
 paths:
   /:
     get:
@@ -21,8 +18,7 @@ paths:
             text/plain:
               schema:
                 type: string
-                example: "Pokémon TCG MCP Server is running! Available endpoints: /cards, /cards/<id>, /card_price, /sets, /sets/<id>, /types, /supertypes, /subtypes, /rarities."
-
+                example: "Pokémon TCG MCP Server is running!"
   /cards:
     get:
       summary: Search for Pokémon TCG Cards
@@ -126,7 +122,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
   /cards/{card_id}:
     get:
       summary: Get Card by ID
@@ -174,7 +169,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
   /card_price:
     get:
       summary: Get Card Price by Name
@@ -201,19 +195,6 @@ paths:
                   card_name:
                     type: string
                     example: Charizard
-                  card_id:
-                    type: string
-                    example: xy7-4
-                  set_name:
-                    type: string
-                    example: Ancient Origins
-                  rarity:
-                    type: string
-                    example: Rare Holo
-                  card_image:
-                    type: string
-                    format: url
-                    example: "https://images.pokemontcg.io/xy7/4.png"
                   prices:
                     type: object
                     additionalProperties:
@@ -223,9 +204,6 @@ paths:
                       holofoil: 120.50
                       normal: 90.00
                       reverseHolofoil: 150.75
-                  message:
-                    type: string
-                    example: "Price data retrieved for 'Charizard'."
         '400':
           description: Missing 'card_name' parameter.
           content:
@@ -254,58 +232,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '200_no_price': # Custom response for 'no_price_data' status
-          description: Card found, but no price data available from TCGPlayer.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: no_price_data
-                  card_name:
-                    type: string
-                    example: "Ancient Mew"
-                  card_id:
-                    type: string
-                    example: "promo-40"
-                  card_image:
-                    type: string
-                    format: url
-                    example: "https://images.pokemontcg.io/promo/40.png"
-                  message:
-                    type: string
-                    example: "No TCGPlayer price data available for 'Ancient Mew'."
-
-
   /sets:
     get:
       summary: Get Pokémon TCG Sets
-      description: Retrieves a list of all Pokémon TCG sets, with optional filtering by name and pagination.
-      parameters:
-        - in: query
-          name: name
-          schema:
-            type: string
-          description: The name of the set to search for (e.g., 'Base Set').
-          example: Base
-        - in: query
-          name: page
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-          description: The page number for results.
-        - in: query
-          name: limit
-            type: integer
-            minimum: 1
-            default: 20
-          description: The number of results per page.
+      description: Retrieves a list of all Pokémon TCG sets.
       responses:
         '200':
-          description: A list of Pokémon TCG sets and pagination information.
+          description: A list of Pokémon TCG sets.
           content:
             application/json:
               schema:
@@ -318,85 +251,12 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Set'
-                  pagination:
-                    $ref: '#/components/schemas/Pagination'
-        '400':
-          description: Invalid page or limit parameter.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: No sets found matching the criteria.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: not_found
-                  query:
-                    type: object
-                    example: {"name": "NonExistentSet"}
-                  message:
-                    type: string
-                    example: "No Pokémon sets found matching your criteria."
         '500':
           description: Internal server error.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
-  /sets/{set_id}:
-    get:
-      summary: Get Set by ID
-      description: Retrieves a specific Pokémon TCG set by its unique ID.
-      parameters:
-        - in: path
-          name: set_id
-          schema:
-            type: string
-          required: true
-          description: The unique ID of the Pokémon set (e.g., 'base1').
-          example: swsh1
-      responses:
-        '200':
-          description: The requested Pokémon TCG set details.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  set:
-                    $ref: '#/components/schemas/Set'
-        '404':
-          description: Set not found.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: not_found
-                  set_id:
-                    type: string
-                    example: "nonexistent-set"
-                  message:
-                    type: string
-                    example: "No Pokémon set found with ID 'nonexistent-set'."
-        '500':
-          description: Internal server error.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
   /types:
     get:
       summary: Get All Card Types
@@ -423,7 +283,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
   /supertypes:
     get:
       summary: Get All Card Supertypes
@@ -450,7 +309,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
   /subtypes:
     get:
       summary: Get All Card Subtypes
@@ -477,7 +335,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
   /rarities:
     get:
       summary: Get All Card Rarities
@@ -504,7 +361,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
 components:
   schemas:
     ErrorResponse:
@@ -516,7 +372,6 @@ components:
         message:
           type: string
           example: "Missing 'card_name' query parameter."
-    
     Pagination:
       type: object
       properties:
@@ -536,7 +391,6 @@ components:
           type: integer
           description: Number of items per page.
           example: 20
-
     Card:
       type: object
       description: Represents a Pokémon TCG card object. This schema is a simplification; the actual SDK object might have many more fields.
@@ -694,7 +548,6 @@ components:
                   directLow: { type: number, format: float, nullable: true }
           nullable: true
         # Many other fields exist in the full SDK, this is a subset for common use.
-
     Set:
       type: object
       description: Represents a Pokémon TCG set object.
