@@ -9,7 +9,6 @@ import requests
 # --- Configuration ---
 LOG_FILE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'orchestrator.log')
 APP_URL = "https://pocket-monster-tcg-mcp.onrender.com/"
-REQUIRED_PACKAGES = ['requests']
 
 # --- Setup Logging ---
 logging.basicConfig(
@@ -30,25 +29,6 @@ class StreamToLogger:
         pass
 
 sys.stderr = StreamToLogger(logging.getLogger('STDERR'), logging.ERROR)
-
-# --- Dependency Check ---
-def check_and_install_packages():
-    logging.info("Checking for required packages...")
-    try:
-        for package in REQUIRED_PACKAGES:
-            subprocess.check_call([sys.executable, "-m", "pip", "show", package], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        logging.info("All required packages are installed.")
-        return True
-    except subprocess.CalledProcessError:
-        logging.warning(f"Required packages are missing. Attempting to install from requirements.txt...")
-        try:
-            req_path = os.path.join(os.path.dirname(__file__), 'requirements.txt')
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", req_path])
-            logging.info("Successfully installed packages from requirements.txt.")
-            return True
-        except Exception as e:
-            logging.critical(f"Failed to install packages: {e}", exc_info=True)
-            return False
 
 # --- MCP Communication Functions ---
 def read_message(stream):
@@ -112,10 +92,6 @@ def execute_tool_call(tool_name, params):
 # --- Main Loop ---
 def main():
     logging.info("--- Orchestrator Starting ---")
-    
-    if not check_and_install_packages():
-        logging.critical("Could not verify/install dependencies. Exiting.")
-        return
 
     sys.stdin = sys.stdin.buffer
     sys.stdout = sys.stdout.buffer
