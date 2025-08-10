@@ -7,6 +7,8 @@ For detailed information on all available endpoints, parameters, and response fo
 
 ![Data Flow Diagram](docs/pokemon-tcg-mcp-flow.png)
 
+---
+
 ## Features
 * Comprehensive Card Data: Retrieve detailed information for individual Pokémon cards or search for cards based on various criteria (name, set, type, rarity).Real-time 
 * Pricing: Fetch current TCGPlayer market prices for specific cards.
