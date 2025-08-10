@@ -11,6 +11,12 @@ All API endpoints are relative to the following base URLs:
 
 ---
 
+## Data Flow Diagram
+
+![Data Flow Diagram](pokemon-tcg-mcp-flow.png)
+
+---
+
 ## Endpoints
 
 ### 1. Server Home
