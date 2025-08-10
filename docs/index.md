@@ -235,3 +235,25 @@ Retrieves a list of all available Pokémon TCG card rarities.
       "rarities": ["Common", "Uncommon", "Rare", "..."]
     }
     ```
+
+---
+
+### Errors
+
+In case of an error, the API will return a JSON object with the following structure:
+
+-   **status** (string): "error"
+-   **message** (string): A human-readable error message.
+-   **details** (object, optional): Additional details about the error.
+
+**Example:**
+
+```json
+{
+  "status": "error",
+  "message": "Invalid request.",
+  "details": {
+    "reason": "The 'card_name' parameter is required."
+  }
+}
+```
