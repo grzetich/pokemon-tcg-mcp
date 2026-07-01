@@ -2,7 +2,7 @@
     "mcpServers": {
         "pokemon-tcg-mcp": {
             "command": "python",
-            "args": ["orchestrator_app.py"]
+            "args": ["server.py"]
         }
     }
 }

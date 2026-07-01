@@ -1,5 +1,3 @@
-flask
-gunicorn
-pokemontcgsdk
-python-dotenv
+mcp
 requests
+python-dotenv

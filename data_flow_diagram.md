@@ -1,19 +1,23 @@
+# Data Flow
+
+The server is a single local process. The MCP client launches `server.py` over
+stdio; each tool call becomes one HTTPS request to the public Pokémon TCG API,
+and the JSON response is passed straight back. There is no hosted backend.
+
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant OrchestratorApp as orchestrator_app.py
-    participant App as app.py (on Render)
-    participant PokemonTCG_SDK as pokemontcgsdk
-    participant PokemonTCG_API as External Pokémon TCG API
+    participant Client as LLM Client (e.g. Claude)
+    participant Server as server.py (local, MCP/stdio)
+    participant API as api.pokemontcg.io (v2)
 
-    Client->>+OrchestratorApp: JSON-RPC Request (stdin)
-    OrchestratorApp->>OrchestratorApp: Parse Request
-    OrchestratorApp->>+App: HTTP GET Request
-    App->>+PokemonTCG_SDK: Call SDK function
-    PokemonTCG_SDK->>+PokemonTCG_API: API Request
-    PokemonTCG_API-->>-PokemonTCG_SDK: API Response
-    PokemonTCG_SDK-->>-App: Return data
-    App-->>-OrchestratorApp: HTTP Response
-    OrchestratorApp->>OrchestratorApp: Format Response
-    OrchestratorApp-->>-Client: JSON-RPC Response (stdout)
+    Client->>+Server: JSON-RPC tools/call (stdin)
+    Server->>Server: Map arguments to a query
+    Server->>+API: HTTPS GET /cards?q=...
+    API-->>-Server: JSON response
+    Server->>Server: Pass JSON through (+ suggestions on no match)
+    Server-->>-Client: JSON-RPC result (stdout)
 ```
+
+> `docs/pokemon-tcg-mcp-flow.png` is rendered from `docs/pokemon-tcg-mcp-flow.mmd`
+> (the same diagram as above). To regenerate it after an edit:
+> `npx -p @mermaid-js/mermaid-cli mmdc -i docs/pokemon-tcg-mcp-flow.mmd -o docs/pokemon-tcg-mcp-flow.png -b white -w 1400`

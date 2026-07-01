@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant Client as LLM Client (e.g. Claude)
+    participant Server as server.py (local, MCP/stdio)
+    participant API as api.pokemontcg.io (v2)
+
+    Client->>+Server: JSON-RPC tools/call (stdin)
+    Server->>Server: Map arguments to a query
+    Server->>+API: HTTPS GET /cards?q=...
+    API-->>-Server: JSON response
+    Server->>Server: Pass JSON through (+ suggestions on no match)
+    Server-->>-Client: JSON-RPC result (stdout)

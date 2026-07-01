@@ -1,58 +1,92 @@
 # Pokémon TCG Model Context Protocol (MCP) Server
-This repository contains a lightweight Model Context Protocol (MCP) server built with Python Flask. It exposes the full functionality of the Pokémon TCG API (pokemontcg.io) as a set of accessible HTTP endpoints, designed to be easily consumed by LLM (Large Language Model) clients (via an orchestrator), custom applications, or other services requiring Pokémon TCG data.
 
-For detailed information on all available endpoints, parameters, and response formats, please see the [**API Reference**](https://grzetich.github.io/pokemon-tcg-mcp/).
+A lightweight [Model Context Protocol](https://modelcontextprotocol.io) server that exposes the [Pokémon TCG API](https://pokemontcg.io) (pokemontcg.io) as a set of tools for LLM clients such as Claude Desktop. It runs as a single local process: the client launches it over stdio, and each tool is a thin wrapper that calls the public Pokémon TCG API directly. **There is no hosted backend to deploy or maintain.**
 
-## Data Flow Diagram
+For the full tool reference, see the [**API Reference**](https://grzetich.github.io/pokemon-tcg-mcp/).
+
+## Data Flow
 
 ![Data Flow Diagram](docs/pokemon-tcg-mcp-flow.png)
+
+```
+LLM client  ──(MCP / stdio)──▶  server.py  ──(HTTPS)──▶  api.pokemontcg.io
+```
+
+The client and the server speak MCP over stdin/stdout. `server.py` translates each tool call into a single HTTPS request to `api.pokemontcg.io/v2` and passes the JSON response straight back. No intermediate web service is involved.
 
 ---
 
 ## Features
-* Comprehensive Card Data: Retrieve detailed information for individual Pokémon cards or search for cards based on various criteria (name, set, type, rarity).Real-time 
-* Pricing: Fetch current TCGPlayer market prices for specific cards.
-* Set Information: Access details about Pokémon TCG sets.
-* Categorical Data: Query lists of all available card types, supertypes, subtypes, and rarities.
-* Pagination: Supports pagination for list endpoints (/cards, /sets) to manage large datasets.
-* RESTful API: Standard HTTP methods (GET) and JSON responses.
-<!-- * Lazy SDK Initialization: The pokemontcgsdk is now lazily imported and initialized on the first request, optimizing startup time and resource usage.-->
-* API EndpointsThe server exposes the following main endpoints:
-  * / (GET): Home route, returns a welcome message.
-  * /cards (GET): Search for cards. Query Parameters: name, set, type, rarity, page, limit (for example, `/cards?name=Pikachu&set=Base&limit=10&page=1`)
-  * /cards/<string:card_id> (GET): Get a specific card by its ID (for example, `/cards/base1-4`)
-  * /card_price (GET): Get the TCGPlayer market price for a card by name (for example, `/card_price?card_name=Charizard`)
-  * /sets (GET): Get all sets, or search by name. Query Parameters: name, page, limit (for example, `/sets?name=Base&limit=5`)
-  * /sets/<string:set_id> (GET): Get a specific set by its ID (for example, `/sets/base1`)
-  * /types (GET): Get all card types.
-  * /supertypes (GET): Get all card supertypes.
-  * /subtypes (GET): Get all card subtypes.
-  * /rarities (GET): Get all card rarities.
 
-## Integration and installation
-This server is designed to work in conjunction with a local orchestrator script (orchestrator_app.py) that handles the Model Context Protocol (MCP) communication with LLM clients (like Claude). The orchestrator acts as a local proxy, translating LLM tool calls into HTTP requests to this deployed server.
+* **Comprehensive card data** — search by name, set, type, rarity, subtype, or supertype, or fetch a single card by ID.
+* **Real-time pricing** — current TCGPlayer market prices for a card by name.
+* **Set information** — list or search sets, or fetch a single set by ID.
+* **Categorical data** — list all types, supertypes, subtypes, and rarities.
+* **Smart suggestions** — a search that matches nothing returns "Did you mean …?" suggestions for misspelled set/type/rarity/subtype/supertype values.
+* **Pagination** — `page` and `limit` arguments on the search tools.
 
-### To install: 
-1. Download the appropriate compressed file for your operating system ([install.tar.gz](https://github.com/grzetich/pokemon-tcg-mcp/blob/ebfe93e220bd6e7fbd2cfe0cb693e6b43a6e20da/install.tar.gz) or [install.zip](https://github.com/grzetich/pokemon-tcg-mcp/blob/ebfe93e220bd6e7fbd2cfe0cb693e6b43a6e20da/install.zip)) from this repository.
-2. Extract *orchestrator_app.py* to your hard drive. Note the path to the file, you'll need it later.
-3. Install the [**Requests**](https://pypi.org/project/requests/) Python library. It's required by *orchestrator_app.py*.
-4. Depending on your configuration, extract *mcp.json* to an appropriate location. Or, copy the following lines and paste them into your configuration file.
+### Tools
 
-```{
-    "mcpServers": {
-        "pokemon-tcg-mcp": {
-            "command": "python",
-            "args": ["orchestrator_app.py"]
-        }
-    }
-}
+| Tool | Description |
+| --- | --- |
+| `search_cards` | Search cards by `name`, `set_name`, `type`, `rarity`, `subtype`, `supertype`, `page`, `limit`. |
+| `get_card_by_id` | Get one card by ID (e.g. `base1-4`). |
+| `get_card_price` | Get TCGPlayer market prices for a card by name. |
+| `search_sets` | List or search sets by `name`, with pagination. |
+| `get_set_by_id` | Get one set by ID (e.g. `base1`). |
+| `get_types` | List all card energy types. |
+| `get_supertypes` | List all card supertypes. |
+| `get_subtypes` | List all card subtypes. |
+| `get_rarities` | List all card rarities. |
+
+## Installation
+
+1. Clone or download this repository.
+2. Install the dependencies (a virtual environment is recommended):
+
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate        # Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+3. (Recommended) Set your own Pokémon TCG API key to raise the rate limits. Get one free at the [Pokémon TCG Developer Portal](https://dev.pokemontcg.io/), then either export it or put it in a `.env` file next to `server.py`:
+
+   ```bash
+   export POKEMONTCG_API_KEY=your-key-here
+   ```
+
+   The server works without a key on the public, lower-rate tier.
+
+4. Register the server with your MCP client. For most clients, add the following to the client's MCP configuration (the contents of [`mcp.json`](mcp.json)), using the **full path** to `server.py` and to the Python interpreter from your virtual environment:
+
+   ```json
+   {
+       "mcpServers": {
+           "pokemon-tcg-mcp": {
+               "command": "/full/path/to/.venv/bin/python",
+               "args": ["/full/path/to/server.py"]
+           }
+       }
+   }
+   ```
+
+That's it — the client starts `server.py` on demand. There is nothing to host.
+
+## Running locally
+
+To exercise the server outside a client (sanity check):
+
+```bash
+python server.py
 ```
 
-**[Note]**
->>In the value for `args`, include the full path to *orchestrater_app.py* from step 2.
+It will wait for MCP messages on stdin. In normal use you don't run it by hand — the MCP client launches it for you.
 
 ## Contributing
-Contributions are welcome! If you have suggestions for improvements, bug fixes, or new features, please open an issue or submit a pull request.
+
+Contributions are welcome. Please open an issue or submit a pull request.
 
 ## License
-This project is open source and available under the MIT License.
+
+Open source under the MIT License.
